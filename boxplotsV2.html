@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Boxplots V2</title>
+        <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+        <style>
+            .selector-container {
+                margin: 20px;
+                padding: 10px;
+                background-color: #f5f5f5;
+                border-radius: 5px;
+            }
+            #actionSelect {
+                padding: 8px;
+                width: 350px;
+                font-size: 16px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="selector-container">
+            <label for="actionSelect">Select action: </label>
+            <select id="actionSelect"></select>
+        </div>
+        <div id="boxContainer" style="width: 100%; min-height: 600px"></div>
+
+        <script>
+            let allActionsData = {};
+            let currentPlot = null;
+
+            // Procesar datos
+            function processBoxData(results) {
+                const actionData = {};
+                results.forEach((session) => {
+                    Object.entries(session).forEach(([key, values]) => {
+                        if (["ID", "sampleCounter", "version"].includes(key))
+                            return;
+                        if (!actionData[key]) actionData[key] = [];
+                        if (Array.isArray(values))
+                            actionData[key].push(...values);
+                    });
+                });
+                return actionData;
+            }
+
+            // Crear boxplot individual
+            function createBoxPlot(action) {
+                const durations = allActionsData[action];
+
+                const trace = {
+                    y: durations,
+                    type: "box",
+                    name: action,
+                    boxpoints: "all",
+                    jitter: 0.3,
+                    marker: {
+                        size: 4,
+                        opacity: 0.7,
+                    },
+                };
+
+                const layout = {
+                    title: `Boxplot for: ${action}`,
+                    yaxis: {
+                        type: "log",
+                        title: "Duration (ms)",
+                        autorange: true,
+                    },
+                    margin: { t: 40 },
+                    height: 600,
+                    showlegend: false,
+                };
+
+                if (currentPlot) {
+                    Plotly.react("boxContainer", [trace], layout);
+                } else {
+                    currentPlot = Plotly.newPlot(
+                        "boxContainer",
+                        [trace],
+                        layout,
+                    );
+                }
+            }
+
+            // Inicialización
+            document.addEventListener("DOMContentLoaded", () => {
+                fetch("resultados_v2.json")
+                    .then((r) => r.json())
+                    .then((data) => {
+                        allActionsData = processBoxData(data);
+                        const actions = Object.keys(allActionsData).sort();
+
+                        // Llenar selector
+                        const select = document.getElementById("actionSelect");
+                        actions.forEach((action) => {
+                            const option = document.createElement("option");
+                            option.value = action;
+                            option.textContent = action;
+                            select.appendChild(option);
+                        });
+
+                        // Crear primer gráfico
+                        if (actions.length > 0) {
+                            createBoxPlot(actions[0]);
+                        }
+
+                        // Evento de cambio
+                        select.addEventListener("change", (e) => {
+                            createBoxPlot(e.target.value);
+                        });
+                    })
+                    .catch((error) => {
+                        console.error("Error cargando datos:", error);
+                        alert(
+                            "Error al cargar los datos. Verifica la consola para más detalles.",
+                        );
+                    });
+            });
+        </script>
+    </body>
+</html>

@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Scatterplots</title>
+        <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    </head>
+    <body>
+        <!-- Selector de acciones -->
+        <div style="margin: 20px">
+            <label for="actionSelect">Select action: </label>
+            <select
+                id="actionSelect"
+                style="padding: 5px; width: 300px"
+            ></select>
+        </div>
+
+        <div id="scatterContainer" style="width: 100%; min-height: 600px"></div>
+
+        <script>
+            let allData = {}; // Almacenará todos los datos procesados
+            let currentPlot = null; // Referencia al gráfico actual
+
+            // Procesar datos
+            function processScatterData(results) {
+                const actionData = {};
+                results.forEach((session) => {
+                    Object.entries(session).forEach(([key, values]) => {
+                        if (["ID", "sampleCounter", "version"].includes(key))
+                            return;
+                        if (!actionData[key]) actionData[key] = [];
+                        if (Array.isArray(values))
+                            actionData[key].push(...values);
+                    });
+                });
+                return actionData;
+            }
+
+            // Crear scatterplot para una acción específica
+            function createScatterPlot(action) {
+                const durations = allData[action];
+
+                const trace = {
+                    y: durations,
+                    mode: "markers",
+                    type: "scatter",
+                    name: action,
+                    marker: {
+                        size: 8,
+                        opacity: 0.6,
+                    },
+                };
+
+                const layout = {
+                    title: `Scatterplot for: ${action}`,
+                    yaxis: {
+                        type: "log",
+                        title: "Duration (ms)",
+                        autorange: true,
+                    },
+                    xaxis: {
+                        title: "Sample index",
+                    },
+                    height: 600,
+                    showlegend: false,
+                };
+
+                if (currentPlot) {
+                    Plotly.react("scatterContainer", [trace], layout);
+                } else {
+                    currentPlot = Plotly.newPlot(
+                        "scatterContainer",
+                        [trace],
+                        layout,
+                    );
+                }
+            }
+
+            // Cargar datos y inicializar
+            document.addEventListener("DOMContentLoaded", () => {
+                fetch("resultados.json")
+                    .then((r) => r.json())
+                    .then((data) => {
+                        // Procesar datos
+                        allData = processScatterData(data);
+
+                        // Llenar selector de acciones
+                        const select = document.getElementById("actionSelect");
+                        const actions = Object.keys(allData).sort();
+
+                        actions.forEach((action) => {
+                            const option = document.createElement("option");
+                            option.value = action;
+                            option.textContent = action;
+                            select.appendChild(option);
+                        });
+
+                        // Crear gráfico inicial
+                        if (actions.length > 0) {
+                            createScatterPlot(actions[0]);
+                        }
+
+                        // Event listener para cambio de selección
+                        select.addEventListener("change", (e) => {
+                            createScatterPlot(e.target.value);
+                        });
+                    })
+                    .catch((error) => {
+                        console.error("Error cargando datos:", error);
+                        alert(
+                            "Error al cargar los datos. Verifica la consola para más detalles.",
+                        );
+                    });
+            });
+        </script>
+    </body>
+</html>
