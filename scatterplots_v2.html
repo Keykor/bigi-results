@@ -3,75 +3,108 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Scatterplots</title>
+        <title>Scatterplots V2</title>
         <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+        <style>
+            .selector-container {
+                margin: 20px;
+                padding: 10px;
+                background-color: #f5f5f5;
+                border-radius: 5px;
+            }
+            #actionSelect {
+                padding: 8px;
+                width: 350px;
+                font-size: 16px;
+            }
+        </style>
     </head>
     <body>
-        <!-- Selector de acciones -->
-        <div style="margin: 20px">
+        <div class="selector-container">
             <label for="actionSelect">Select action: </label>
-            <select
-                id="actionSelect"
-                style="padding: 5px; width: 300px"
-            ></select>
+            <select id="actionSelect"></select>
         </div>
 
         <div id="scatterContainer" style="width: 100%; min-height: 600px"></div>
 
         <script>
-            let allData = {}; // Almacenará todos los datos procesados
-            let currentPlot = null; // Referencia al gráfico actual
+            let allData = {};
+            let currentPlot = null;
+            const colors = Plotly.d3.scale.category10(); // Paleta de colores para versiones
 
-            // Procesar datos
+            // Procesar datos agrupando por versión
             function processScatterData(results) {
                 const actionData = {};
                 results.forEach((session) => {
+                    const version = session.version;
                     Object.entries(session).forEach(([key, values]) => {
                         if (["ID", "sampleCounter", "version"].includes(key))
                             return;
-                        if (!actionData[key]) actionData[key] = [];
-                        if (Array.isArray(values))
-                            actionData[key].push(...values);
+                        if (!actionData[key]) actionData[key] = {};
+                        if (!actionData[key][version])
+                            actionData[key][version] = [];
+                        if (Array.isArray(values)) {
+                            actionData[key][version].push(
+                                ...values.map((v) => ({
+                                    value: v,
+                                    version: version,
+                                    sessionId: session.ID,
+                                    sampleCounter: session.sampleCounter,
+                                })),
+                            );
+                        }
                     });
                 });
                 return actionData;
             }
 
-            // Crear scatterplot para una acción específica
+            // Crear scatterplot agrupado por versión
             function createScatterPlot(action) {
-                const durations = allData[action];
+                const versionData = allData[action];
+                const versions = Object.keys(versionData).sort();
 
-                const trace = {
-                    y: durations,
+                const traces = versions.map((version, index) => ({
+                    y: versionData[version].map((d) => d.value),
+                    x: versionData[version].map((d, i) => i), // Índice de muestra por versión
                     mode: "markers",
                     type: "scatter",
-                    name: action,
+                    name: `Version ${version}`,
                     marker: {
                         size: 8,
-                        opacity: 0.6,
+                        opacity: 0.7,
+                        color: colors(index),
                     },
-                };
+                    text: versionData[version].map(
+                        (d) =>
+                            `Version: ${d.version}<br>Session: ${d.sessionId}<br>Sample: ${d.sampleCounter}`,
+                    ),
+                    hoverinfo: "text+y",
+                }));
 
                 const layout = {
-                    title: `Scatterplot for: ${action}`,
+                    title: `Scatterplot for: ${action} by Version`,
                     yaxis: {
                         type: "log",
                         title: "Duration (ms)",
                         autorange: true,
                     },
                     xaxis: {
-                        title: "Sample index",
+                        title: "Sample Index per Version",
                     },
                     height: 600,
-                    showlegend: false,
+                    showlegend: true,
+                    legend: {
+                        orientation: "h",
+                        y: -0.2,
+                    },
                 };
 
                 if (currentPlot) {
-                    Plotly.react("scatterContainer", [trace], layout);
+                    Plotly.react("scatterContainer", traces, layout);
                 } else {
                     currentPlot = Plotly.newPlot(
                         "scatterContainer",
-                        [trace],
+                        traces,
                         layout,
                     );
                 }
@@ -79,16 +112,13 @@
 
             // Cargar datos y inicializar
             document.addEventListener("DOMContentLoaded", () => {
-                fetch("resultados.json")
+                fetch("resultados_v2.json")
                     .then((r) => r.json())
                     .then((data) => {
-                        // Procesar datos
                         allData = processScatterData(data);
-
-                        // Llenar selector de acciones
-                        const select = document.getElementById("actionSelect");
                         const actions = Object.keys(allData).sort();
 
+                        const select = document.getElementById("actionSelect");
                         actions.forEach((action) => {
                             const option = document.createElement("option");
                             option.value = action;
@@ -96,12 +126,10 @@
                             select.appendChild(option);
                         });
 
-                        // Crear gráfico inicial
                         if (actions.length > 0) {
                             createScatterPlot(actions[0]);
                         }
 
-                        // Event listener para cambio de selección
                         select.addEventListener("change", (e) => {
                             createScatterPlot(e.target.value);
                         });

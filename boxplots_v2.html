@@ -30,35 +30,50 @@
             let allActionsData = {};
             let currentPlot = null;
 
-            // Procesar datos
+            // Procesar datos con información adicional
             function processBoxData(results) {
                 const actionData = {};
                 results.forEach((session) => {
+                    const sessionId = session.ID;
+                    const sampleCounter = session.sampleCounter; // Usar sampleCounter
                     Object.entries(session).forEach(([key, values]) => {
                         if (["ID", "sampleCounter", "version"].includes(key))
                             return;
                         if (!actionData[key]) actionData[key] = [];
-                        if (Array.isArray(values))
-                            actionData[key].push(...values);
+                        if (Array.isArray(values)) {
+                            actionData[key].push(
+                                ...values.map((value) => ({
+                                    value: value,
+                                    sessionId: sessionId,
+                                    sampleCounter: sampleCounter, // Agregar sampleCounter
+                                })),
+                            );
+                        }
                     });
                 });
                 return actionData;
             }
 
-            // Crear boxplot individual
+            // Crear boxplot con tooltips personalizados
             function createBoxPlot(action) {
-                const durations = allActionsData[action];
+                const dataPoints = allActionsData[action];
 
                 const trace = {
-                    y: durations,
+                    y: dataPoints.map((d) => d.value),
                     type: "box",
                     name: action,
-                    boxpoints: "all",
+                    boxpoints: "all", // Mostrar todos los puntos
                     jitter: 0.3,
                     marker: {
-                        size: 4,
+                        size: 6,
                         opacity: 0.7,
+                        color: "rgba(55, 128, 191, 0.7)",
                     },
+                    text: dataPoints.map(
+                        (d) =>
+                            `Session ID: ${d.sessionId}<br>Sample Counter: ${d.sampleCounter}`,
+                    ),
+                    hoverinfo: "y+text", // Mostrar valor y tooltip personalizado
                 };
 
                 const layout = {
